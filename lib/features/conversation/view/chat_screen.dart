@@ -80,7 +80,7 @@ class ChatScreen extends ConsumerWidget {
         children: [
           Expanded(
             child: DecoratedBox(
-              decoration: BoxDecoration(gradient: wallpaper.gradient),
+              decoration: wallpaper.decoration,
               child: ListView.builder(
                 reverse: true,
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),

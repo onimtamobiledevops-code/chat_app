@@ -1,5 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_mode_provider.dart';
@@ -87,9 +89,21 @@ class ThemeScreen extends ConsumerWidget {
               height: 92,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: ChatWallpaper.values.length,
+                itemCount: ChatWallpaper.values.length + 1,
                 separatorBuilder: (_, _) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
+                  if (index == ChatWallpaper.values.length) {
+                    final customWallpaper =
+                        selectedWallpaper.id == 'custom'
+                        ? selectedWallpaper
+                        : ChatWallpaper.defaults;
+                    return _WallpaperTile(
+                      wallpaper: customWallpaper,
+                      selected: selectedWallpaper.id == 'custom',
+                      isGalleryPicker: true,
+                      onTap: () => _pickGalleryWallpaper(context, ref),
+                    );
+                  }
                   final wallpaper = ChatWallpaper.values[index];
                   return _WallpaperTile(
                     wallpaper: wallpaper,
@@ -218,6 +232,36 @@ class ThemeScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _pickGalleryWallpaper(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    try {
+      final image = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2400,
+        maxHeight: 2400,
+        imageQuality: 88,
+      );
+      if (image == null || !context.mounted) return;
+
+      final bytes = await image.readAsBytes();
+      if (!context.mounted) return;
+      ref
+          .read(chatWallpaperProvider.notifier)
+          .setWallpaper(ChatWallpaper.customImage(bytes));
+    } on PlatformException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.message ?? 'Could not open your photo gallery.',
+          ),
+        ),
+      );
+    }
+  }
 }
 
 class _PaletteTile extends StatelessWidget {
@@ -293,11 +337,13 @@ class _WallpaperTile extends StatelessWidget {
   final ChatWallpaper wallpaper;
   final bool selected;
   final VoidCallback onTap;
+  final bool isGalleryPicker;
 
   const _WallpaperTile({
     required this.wallpaper,
     required this.selected,
     required this.onTap,
+    this.isGalleryPicker = false,
   });
 
   @override
@@ -305,14 +351,22 @@ class _WallpaperTile extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: wallpaper.name,
+      label: isGalleryPicker ? 'Choose from gallery' : wallpaper.name,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 64,
           decoration: BoxDecoration(
-            gradient: wallpaper.gradient,
+            gradient: wallpaper.imageBytes == null
+                ? wallpaper.gradient
+                : null,
+            image: wallpaper.imageBytes == null
+                ? null
+                : DecorationImage(
+                    image: MemoryImage(wallpaper.imageBytes!),
+                    fit: BoxFit.cover,
+                  ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: selected
@@ -323,15 +377,24 @@ class _WallpaperTile extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              const Positioned(
-                right: 8,
-                bottom: 22,
-                child: Icon(
-                  Icons.chat_bubble_rounded,
-                  color: Colors.white70,
-                  size: 22,
+              if (isGalleryPicker)
+                const Center(
+                  child: Icon(
+                    Icons.add_photo_alternate_outlined,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                )
+              else
+                const Positioned(
+                  right: 8,
+                  bottom: 22,
+                  child: Icon(
+                    Icons.chat_bubble_rounded,
+                    color: Colors.white70,
+                    size: 22,
+                  ),
                 ),
-              ),
               if (selected)
                 const Positioned(
                   top: 5,
@@ -347,7 +410,11 @@ class _WallpaperTile extends StatelessWidget {
                 right: 0,
                 bottom: 4,
                 child: Text(
-                  wallpaper.name,
+                  isGalleryPicker
+                      ? wallpaper.id == 'custom'
+                          ? 'My photo'
+                          : 'Gallery'
+                      : wallpaper.name,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Colors.white,

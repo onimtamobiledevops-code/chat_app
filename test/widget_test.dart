@@ -1,8 +1,10 @@
 import 'package:chat_app/core/theme/app_theme.dart';
+import 'package:chat_app/core/theme/theme_mode_provider.dart';
 import 'package:chat_app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:typed_data';
 
 Future<void> _pumpApp(WidgetTester tester) async {
   tester.view.physicalSize = const Size(1170, 2532);
@@ -92,6 +94,11 @@ void main() {
     expect(find.text('Chat Theme'), findsOneWidget);
     expect(find.text('Dark mode'), findsOneWidget);
     expect(find.text('Use device theme'), findsOneWidget);
+    await tester.ensureVisible(find.text('Chat wallpaper'));
+    await tester.drag(find.byType(ListView).at(1), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Gallery'), findsOneWidget);
+    expect(find.byIcon(Icons.add_photo_alternate_outlined), findsOneWidget);
 
     await tester.tap(find.byType(SwitchListTile));
     await tester.pumpAndSettle();
@@ -128,5 +135,22 @@ void main() {
       tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
       ThemeMode.system,
     );
+  });
+
+  test('custom wallpaper stores image data for chat backgrounds', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final bytes = Uint8List.fromList([1, 2, 3]);
+
+    container
+        .read(chatWallpaperProvider.notifier)
+        .setWallpaper(ChatWallpaper.customImage(bytes));
+
+    final wallpaper = container.read(chatWallpaperProvider);
+
+ \   expect(wallpaper.id, 'custom');
+    expect(wallpaper.imageBytes, same(bytes));
+    expect(wallpaper.decoration.image, isNotNull);
+    expect(wallpaper.decoration.gradient, isNull);
   });
 }

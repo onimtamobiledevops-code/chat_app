@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,6 +34,7 @@ class ChatWallpaper {
   final Color first;
   final Color second;
   final Color? third;
+  final Uint8List? imageBytes;
 
   const ChatWallpaper({
     required this.id,
@@ -39,6 +42,7 @@ class ChatWallpaper {
     required this.first,
     required this.second,
     this.third,
+    this.imageBytes,
   });
 
   static const defaults = ChatWallpaper(
@@ -82,10 +86,28 @@ class ChatWallpaper {
 
   static const values = [defaults, mist, ocean, dusk, forest];
 
+  factory ChatWallpaper.customImage(Uint8List imageBytes) => ChatWallpaper(
+    id: 'custom',
+    name: 'My photo',
+    first: defaults.first,
+    second: defaults.second,
+    imageBytes: imageBytes,
+  );
+
   LinearGradient get gradient => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [first, ?third, second],
+  );
+
+  BoxDecoration get decoration => BoxDecoration(
+    gradient: imageBytes == null ? gradient : null,
+    image: imageBytes == null
+        ? null
+        : DecorationImage(
+            image: MemoryImage(imageBytes!),
+            fit: BoxFit.cover,
+          ),
   );
 }
 
