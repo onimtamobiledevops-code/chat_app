@@ -43,6 +43,7 @@ void main() {
 
     await tester.tap(find.text('Kasun Silva').last);
     await tester.pumpAndSettle();
+    expect(find.byType(CustomPaint), findsWidgets);
 
     await tester.enterText(find.byType(TextField), 'Hello');
     await tester.pumpAndSettle();
@@ -148,7 +149,7 @@ void main() {
 
     final wallpaper = container.read(chatWallpaperProvider);
 
- \   expect(wallpaper.id, 'custom');
+    expect(wallpaper.id, 'custom');
     expect(wallpaper.imageBytes, same(bytes));
     expect(wallpaper.decoration.image, isNotNull);
     expect(wallpaper.decoration.gradient, isNull);

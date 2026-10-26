@@ -8,6 +8,7 @@ import '../../../data/models/models.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../../chats/providers/chats_provider.dart';
 import '../providers/conversation_provider.dart';
+import '../widgets/chat_doodle_pattern.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 
@@ -47,15 +48,17 @@ class ChatScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(user.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    user.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   Text(
                     chat.isTyping
                         ? 'typing…'
                         : user.isOnline
-                            ? 'Online'
-                            : 'Last seen recently',
+                        ? 'Online'
+                        : 'Last seen recently',
                     style: TextStyle(
                       fontSize: 12,
                       color: user.isOnline || chat.isTyping
@@ -70,10 +73,14 @@ class ChatScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-              onPressed: () {}, icon: const Icon(Icons.videocam_outlined)),
+            onPressed: () {},
+            icon: const Icon(Icons.videocam_outlined),
+          ),
           IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined)),
           IconButton(
-              onPressed: () {}, icon: const Icon(Icons.more_vert_rounded)),
+            onPressed: () {},
+            icon: const Icon(Icons.more_vert_rounded),
+          ),
         ],
       ),
       body: Column(
@@ -81,36 +88,44 @@ class ChatScreen extends ConsumerWidget {
           Expanded(
             child: DecoratedBox(
               decoration: wallpaper.decoration,
-              child: ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                itemCount: reversed.length,
-                itemBuilder: (_, i) {
-                  final m = reversed[i];
-                  final Message? newer = i > 0 ? reversed[i - 1] : null;
-                  final Message? older =
-                      i < reversed.length - 1 ? reversed[i + 1] : null;
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  const ChatDoodlePattern(),
+                  ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    itemCount: reversed.length,
+                    itemBuilder: (_, i) {
+                      final m = reversed[i];
+                      final Message? newer = i > 0 ? reversed[i - 1] : null;
+                      final Message? older = i < reversed.length - 1
+                          ? reversed[i + 1]
+                          : null;
 
-                  final showDay =
-                      older == null || !_sameDay(older.time, m.time);
-                  final first = showDay || older.isMe != m.isMe;
-                  final last = newer == null ||
-                      newer.isMe != m.isMe ||
-                      !_sameDay(newer.time, m.time);
+                      final showDay =
+                          older == null || !_sameDay(older.time, m.time);
+                      final first = showDay || older.isMe != m.isMe;
+                      final last =
+                          newer == null ||
+                          newer.isMe != m.isMe ||
+                          !_sameDay(newer.time, m.time);
 
-                  return Column(
-                    children: [
-                      if (showDay) _DayChip(label: formatDayHeader(m.time)),
-                      MessageBubble(
-                        key: ValueKey(m.id),
-                        message: m,
-                        fontSize: messageFontSize,
-                        isFirstInGroup: first,
-                        isLastInGroup: last,
-                      ),
-                    ],
-                  );
-                },
+                      return Column(
+                        children: [
+                          if (showDay) _DayChip(label: formatDayHeader(m.time)),
+                          MessageBubble(
+                            key: ValueKey(m.id),
+                            message: m,
+                            fontSize: messageFontSize,
+                            isFirstInGroup: first,
+                            isLastInGroup: last,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ),
@@ -139,11 +154,14 @@ class _DayChip extends StatelessWidget {
           color: context.surface,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: context.subtext)),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.subtext,
+          ),
+        ),
       ),
     );
   }
