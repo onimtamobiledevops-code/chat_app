@@ -8,10 +8,18 @@ class AuthNotifier extends AsyncNotifier<User?> {
   @override
   Future<User?> build() => ref.watch(authRepositoryProvider).currentUser();
 
-  /// Throws [AuthException] on bad credentials; the caller shows the error,
+  /// Throws [AuthException] when the mobile number is not registered.
+  /// The caller shows the error,
   /// so a failed attempt never kicks the app out of its current state.
-  Future<void> signIn(String email, String password) async {
-    final user = await ref.read(authRepositoryProvider).signIn(email, password);
+  Future<void> signInWithMobile(String mobileNumber) async {
+    final user = await ref
+        .read(authRepositoryProvider)
+        .signInWithMobile(mobileNumber);
+    state = AsyncData(user);
+  }
+
+  Future<void> signUp(SignUpRequest request) async {
+    final user = await ref.read(authRepositoryProvider).signUp(request);
     state = AsyncData(user);
   }
 
@@ -21,5 +29,6 @@ class AuthNotifier extends AsyncNotifier<User?> {
   }
 }
 
-final authProvider =
-    AsyncNotifierProvider<AuthNotifier, User?>(AuthNotifier.new);
+final authProvider = AsyncNotifierProvider<AuthNotifier, User?>(
+  AuthNotifier.new,
+);

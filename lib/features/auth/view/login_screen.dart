@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../data/models/models.dart';
 import '../../../shared/widgets/app_logo.dart';
+import '../../../shared/widgets/avatar.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -14,19 +18,23 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController();
-  final _password = TextEditingController();
+  final _name = TextEditingController();
+  final _membershipNumber = TextEditingController();
+  final _mobileNumber = TextEditingController();
+  final _remarks = TextEditingController();
 
-  bool _obscure = true;
+  CountryCode _country = CountryCode.sriLanka;
+  bool _isSigningUp = false;
   bool _loading = false;
   String? _error;
-
-  static final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  Uint8List? _photoBytes;
 
   @override
   void dispose() {
-    _email.dispose();
-    _password.dispose();
+    _name.dispose();
+    _membershipNumber.dispose();
+    _mobileNumber.dispose();
+    _remarks.dispose();
     super.dispose();
   }
 
@@ -39,11 +47,78 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(authProvider.notifier).signIn(_email.text, _password.text);
+      final mobileNumber = _fullMobileNumber;
+      if (_isSigningUp) {
+        await ref
+            .read(authProvider.notifier)
+            .signUp(
+              SignUpRequest(
+                name: _name.text,
+                membershipNumber: _membershipNumber.text,
+                mobileNumber: mobileNumber,
+                remarks: _remarks.text,
+                photoBytes: _photoBytes,
+              ),
+            );
+      } else {
+        await ref.read(authProvider.notifier).signInWithMobile(mobileNumber);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String get _fullMobileNumber {
+    final digits = _mobileNumber.text.replaceAll(RegExp(r'\D'), '');
+    final nationalNumber = digits.replaceFirst(RegExp(r'^0+'), '');
+    return '${_country.dialCode}$nationalNumber';
+  }
+
+  String? _validateMobileNumber(String? value) {
+    final digits = value?.replaceAll(RegExp(r'\D'), '') ?? '';
+    if (digits.isEmpty) return 'Please enter your mobile number';
+    if (digits.length < 6 || digits.length > 15) {
+      return 'Enter a valid mobile number';
+    }
+    return null;
+  }
+
+  Future<void> _chooseCountry() async {
+    final country = await showModalBottomSheet<CountryCode>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => const _CountryPickerSheet(),
+    );
+    if (country != null && mounted) {
+      setState(() => _country = country);
+    }
+  }
+
+  Future<void> _pickPhoto() async {
+    try {
+      final photo = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (photo == null) return;
+      final bytes = await photo.readAsBytes();
+      if (mounted) {
+        setState(() {
+          _photoBytes = bytes;
+          _error = null;
+        });
+      }
+    } on PlatformException catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = error.message ?? 'Could not open your photo gallery.';
+        });
+      }
     }
   }
 
@@ -63,136 +138,151 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: _Logo()),
-                    const SizedBox(height: 28),
+                    if (!_isSigningUp) ...[
+                      const Center(child: _Logo()),
+                      const SizedBox(height: 28),
+                    ],
                     Text(
-                      'Welcome back 👋',
+                      _isSigningUp ? 'Join ChatWBee' : 'Welcome back 👋',
                       textAlign: TextAlign.center,
                       style: textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Log in to your account',
+                      _isSigningUp
+                          ? 'Create your member account'
+                          : 'Log in to your account',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: context.subtext, fontSize: 15),
                     ),
                     const SizedBox(height: 36),
-                    const _FieldLabel('Email'),
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(
-                        hintText: 'you@example.com',
-                        prefixIcon: Icon(Icons.mail_outline_rounded),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!_emailRegex.hasMatch(v.trim())) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 18),
-                    const _FieldLabel('Password'),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: _obscure,
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.password],
-                      onFieldSubmitted: (_) => _submit(),
-                      decoration: InputDecoration(
-                        hintText: '••••••',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        suffixIcon: IconButton(
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                          icon: Icon(
-                            _obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
+                    if (_isSigningUp) ...[
+                      Center(
+                        child: Column(
+                          children: [
+                            if (_photoBytes == null)
+                              Container(
+                                width: 88,
+                                height: 88,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.person_outline_rounded,
+                                  size: 42,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              )
+                            else
+                              Avatar(
+                                user: User(
+                                  id: 'signup-photo',
+                                  name: _name.text.isEmpty
+                                      ? 'New Member'
+                                      : _name.text,
+                                  photoBytes: _photoBytes,
+                                ),
+                                size: 88,
+                                showOnline: false,
+                              ),
+                            TextButton.icon(
+                              onPressed: _pickPhoto,
+                              icon: const Icon(Icons.add_a_photo_outlined),
+                              label: Text(
+                                _photoBytes == null
+                                    ? 'Add profile photo'
+                                    : 'Change profile photo',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        if (v.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        child: const Text('Forgot password?'),
+                      const SizedBox(height: 12),
+                      const _FieldLabel('Full name'),
+                      TextFormField(
+                        controller: _name,
+                        textCapitalization: TextCapitalization.words,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          hintText: 'Your full name',
+                          prefixIcon: Icon(Icons.person_outline_rounded),
+                        ),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? 'Please enter your name'
+                            : null,
                       ),
+                      const SizedBox(height: 18),
+                      const _FieldLabel('Membership number'),
+                      TextFormField(
+                        controller: _membershipNumber,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter your membership number',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? 'Please enter your membership number'
+                            : null,
+                      ),
+                      const SizedBox(height: 18),
+                    ],
+                    const _FieldLabel('Mobile number'),
+                    _MobileNumberField(
+                      controller: _mobileNumber,
+                      country: _country,
+                      onChooseCountry: _chooseCountry,
+                      onSubmitted: (_) => _submit(),
+                      validator: _validateMobileNumber,
                     ),
+                    if (_isSigningUp) ...[
+                      const SizedBox(height: 18),
+                      const _FieldLabel('Remarks (optional)'),
+                      TextFormField(
+                        controller: _remarks,
+                        minLines: 2,
+                        maxLines: 4,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          hintText: 'Anything else you would like us to know?',
+                          prefixIcon: Icon(Icons.notes_rounded),
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                    ],
                     if (_error != null) ...[
                       _ErrorBanner(message: _error!),
                       const SizedBox(height: 12),
                     ],
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     _PrimaryButton(
-                      label: 'Login',
+                      label: _isSigningUp ? 'Create account' : 'Continue',
                       loading: _loading,
                       onPressed: _submit,
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        const Expanded(child: Divider()),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            'or',
-                            style: TextStyle(color: context.subtext),
-                          ),
-                        ),
-                        const Expanded(child: Divider()),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    OutlinedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.g_mobiledata_rounded, size: 30),
-                      label: const Text('Continue with Google'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(54),
-                        backgroundColor: context.surface,
-                        foregroundColor: Theme.of(
-                          context,
-                        ).colorScheme.onSurface,
-                        side: BorderSide(
-                          color: context.subtext.withValues(alpha: 0.25),
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                     ),
                     const SizedBox(height: 28),
                     Wrap(
                       alignment: WrapAlignment.center,
                       children: [
                         Text(
-                          "Don't have an account? ",
+                          _isSigningUp
+                              ? 'Already have an account? '
+                              : "Don't have an account? ",
                           style: TextStyle(color: context.subtext),
                         ),
                         GestureDetector(
-                          onTap: () {},
+                          onTap: _loading
+                              ? null
+                              : () => setState(() {
+                                  _isSigningUp = !_isSigningUp;
+                                  _error = null;
+                                }),
                           child: Text(
-                            'Sign up',
+                            _isSigningUp ? 'Login' : 'Sign up',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.w700,
@@ -206,6 +296,183 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class CountryCode {
+  final String name;
+  final String flag;
+  final String dialCode;
+
+  const CountryCode({
+    required this.name,
+    required this.flag,
+    required this.dialCode,
+  });
+
+  static const sriLanka = CountryCode(
+    name: 'Sri Lanka',
+    flag: '🇱🇰',
+    dialCode: '+94',
+  );
+
+  static const values = [
+    sriLanka,
+    CountryCode(name: 'India', flag: '🇮🇳', dialCode: '+91'),
+    CountryCode(name: 'United States', flag: '🇺🇸', dialCode: '+1'),
+    CountryCode(name: 'United Kingdom', flag: '🇬🇧', dialCode: '+44'),
+    CountryCode(name: 'Australia', flag: '🇦🇺', dialCode: '+61'),
+    CountryCode(name: 'Canada', flag: '🇨🇦', dialCode: '+1'),
+    CountryCode(name: 'United Arab Emirates', flag: '🇦🇪', dialCode: '+971'),
+    CountryCode(name: 'Qatar', flag: '🇶🇦', dialCode: '+974'),
+    CountryCode(name: 'Saudi Arabia', flag: '🇸🇦', dialCode: '+966'),
+    CountryCode(name: 'Singapore', flag: '🇸🇬', dialCode: '+65'),
+    CountryCode(name: 'Malaysia', flag: '🇲🇾', dialCode: '+60'),
+    CountryCode(name: 'Japan', flag: '🇯🇵', dialCode: '+81'),
+    CountryCode(name: 'Germany', flag: '🇩🇪', dialCode: '+49'),
+    CountryCode(name: 'France', flag: '🇫🇷', dialCode: '+33'),
+    CountryCode(name: 'Italy', flag: '🇮🇹', dialCode: '+39'),
+    CountryCode(name: 'New Zealand', flag: '🇳🇿', dialCode: '+64'),
+    CountryCode(name: 'South Africa', flag: '🇿🇦', dialCode: '+27'),
+    CountryCode(name: 'Pakistan', flag: '🇵🇰', dialCode: '+92'),
+    CountryCode(name: 'Bangladesh', flag: '🇧🇩', dialCode: '+880'),
+    CountryCode(name: 'Nepal', flag: '🇳🇵', dialCode: '+977'),
+  ];
+}
+
+class _MobileNumberField extends StatelessWidget {
+  final TextEditingController controller;
+  final CountryCode country;
+  final VoidCallback onChooseCountry;
+  final ValueChanged<String> onSubmitted;
+  final FormFieldValidator<String> validator;
+
+  const _MobileNumberField({
+    required this.controller,
+    required this.country,
+    required this.onChooseCountry,
+    required this.onSubmitted,
+    required this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.phone,
+      textInputAction: TextInputAction.done,
+      autofillHints: const [AutofillHints.telephoneNumber],
+      onFieldSubmitted: onSubmitted,
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: 'Mobile number',
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 112,
+          minHeight: 56,
+        ),
+        prefixIcon: InkWell(
+          onTap: onChooseCountry,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 14, right: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(country.flag, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 5),
+                Text(
+                  country.dialCode,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Icon(Icons.arrow_drop_down_rounded),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CountryPickerSheet extends StatefulWidget {
+  const _CountryPickerSheet();
+
+  @override
+  State<_CountryPickerSheet> createState() => _CountryPickerSheetState();
+}
+
+class _CountryPickerSheetState extends State<_CountryPickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _query.trim().toLowerCase();
+    final countries = CountryCode.values
+        .where(
+          (country) =>
+              country.name.toLowerCase().contains(query) ||
+              country.dialCode.contains(query),
+        )
+        .toList();
+
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.75,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: Text(
+                'Choose country code',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: const InputDecoration(
+                  hintText: 'Search country or code',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                itemCount: countries.length,
+                itemBuilder: (context, index) {
+                  final country = countries[index];
+                  return ListTile(
+                    leading: Text(
+                      country.flag,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    title: Text(country.name),
+                    trailing: Text(
+                      country.dialCode,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    onTap: () => Navigator.of(context).pop(country),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

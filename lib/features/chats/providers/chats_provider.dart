@@ -18,9 +18,7 @@ class ChatsNotifier extends AsyncNotifier<List<Chat>> {
   void _updateChat(String chatId, Chat Function(Chat) update) {
     final chats = state.value;
     if (chats == null) return;
-    state = AsyncData([
-      for (final c in chats) c.id == chatId ? update(c) : c,
-    ]);
+    state = AsyncData([for (final c in chats) c.id == chatId ? update(c) : c]);
   }
 
   /// Optimistically shows the message as "sending", then swaps in the
@@ -35,13 +33,14 @@ class ChatsNotifier extends AsyncNotifier<List<Chat>> {
     );
     _updateChat(chatId, (c) => c.copyWith(messages: [...c.messages, pending]));
 
-    final sent =
-        await ref.read(chatRepositoryProvider).sendMessage(chatId, text);
+    final sent = await ref
+        .read(chatRepositoryProvider)
+        .sendMessage(chatId, text);
     _updateChat(
       chatId,
-      (c) => c.copyWith(messages: [
-        for (final m in c.messages) m.id == pending.id ? sent : m,
-      ]),
+      (c) => c.copyWith(
+        messages: [for (final m in c.messages) m.id == pending.id ? sent : m],
+      ),
     );
   }
 
@@ -51,8 +50,9 @@ class ChatsNotifier extends AsyncNotifier<List<Chat>> {
   }
 }
 
-final chatsProvider =
-    AsyncNotifierProvider<ChatsNotifier, List<Chat>>(ChatsNotifier.new);
+final chatsProvider = AsyncNotifierProvider<ChatsNotifier, List<Chat>>(
+  ChatsNotifier.new,
+);
 
 class SearchQueryNotifier extends Notifier<String> {
   @override
@@ -61,8 +61,9 @@ class SearchQueryNotifier extends Notifier<String> {
   void set(String value) => state = value;
 }
 
-final searchQueryProvider =
-    NotifierProvider<SearchQueryNotifier, String>(SearchQueryNotifier.new);
+final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(
+  SearchQueryNotifier.new,
+);
 
 /// Chats filtered by the search query, pinned first, then newest first.
 final filteredChatsProvider = Provider<AsyncValue<List<Chat>>>((ref) {

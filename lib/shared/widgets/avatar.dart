@@ -29,20 +29,30 @@ class Avatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color, Color.lerp(color, Colors.black, 0.25)!],
-        ),
+        gradient: user.photoBytes == null
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [color, Color.lerp(color, Colors.black, 0.25)!],
+              )
+            : null,
+        image: user.photoBytes == null
+            ? null
+            : DecorationImage(
+                image: MemoryImage(user.photoBytes!),
+                fit: BoxFit.cover,
+              ),
       ),
-      child: Text(
-        user.initials,
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: size * 0.36,
-        ),
-      ),
+      child: user.photoBytes == null
+          ? Text(
+              user.initials,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: size * 0.36,
+              ),
+            )
+          : null,
     );
 
     if (ring) {
