@@ -9,12 +9,17 @@ class AuthNotifier extends AsyncNotifier<User?> {
   Future<User?> build() => ref.watch(authRepositoryProvider).currentUser();
 
   /// Throws [AuthException] when the mobile number is not registered.
+  /// Leaves [state] untouched; the PIN step does the actual sign-in.
+  Future<void> checkMobileNumber(String mobileNumber) =>
+      ref.read(authRepositoryProvider).checkMobileNumber(mobileNumber);
+
+  /// Throws [AuthException] when the mobile number or PIN is wrong.
   /// The caller shows the error,
   /// so a failed attempt never kicks the app out of its current state.
-  Future<void> signInWithMobile(String mobileNumber) async {
+  Future<void> signInWithMobile(String mobileNumber, String pin) async {
     final user = await ref
         .read(authRepositoryProvider)
-        .signInWithMobile(mobileNumber);
+        .signInWithMobile(mobileNumber, pin);
     state = AsyncData(user);
   }
 

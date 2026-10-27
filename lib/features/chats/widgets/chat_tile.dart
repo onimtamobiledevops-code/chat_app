@@ -23,7 +23,10 @@ class ChatTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Row(
           children: [
-            Hero(tag: 'avatar-${chat.user.id}', child: Avatar(user: chat.user)),
+            Hero(
+              tag: 'avatar-${chat.user.id}',
+              child: Avatar(user: chat.user),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -43,8 +46,9 @@ class ChatTile extends StatelessWidget {
                         formatChatTime(last.time),
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight:
-                              hasUnread ? FontWeight.w700 : FontWeight.w400,
+                          fontWeight: hasUnread
+                              ? FontWeight.w700
+                              : FontWeight.w400,
                           color: hasUnread
                               ? Theme.of(context).colorScheme.primary
                               : context.subtext,
@@ -72,20 +76,26 @@ class ChatTile extends StatelessWidget {
                             color: chat.isTyping
                                 ? Theme.of(context).colorScheme.primary
                                 : hasUnread
-                                    ? Theme.of(context).colorScheme.onSurface
-                                    : context.subtext,
-                            fontWeight:
-                                hasUnread ? FontWeight.w600 : FontWeight.w400,
+                                ? Theme.of(context).colorScheme.onSurface
+                                : context.subtext,
+                            fontWeight: hasUnread
+                                ? FontWeight.w600
+                                : FontWeight.w400,
                           ),
                         ),
                       ),
                       if (chat.isPinned && !hasUnread)
-                        Icon(Icons.push_pin_rounded,
-                            size: 16, color: context.subtext),
+                        Icon(
+                          Icons.push_pin_rounded,
+                          size: 16,
+                          color: context.subtext,
+                        ),
                       if (hasUnread)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
                           constraints: const BoxConstraints(minWidth: 22),
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.primary,

@@ -144,15 +144,15 @@ class AppThemePalette {
   ];
 
   static AppThemePalette custom(Color primary) => AppThemePalette(
-        id: 'custom',
-        name: 'Custom',
-        primary: primary,
-        accent: Color.lerp(primary, Colors.white, 0.42)!,
-        lightBackground: Color.lerp(Colors.white, primary, 0.045)!,
-        darkBackground: Color.lerp(const Color(0xFF101014), primary, 0.18)!,
-        darkSurface: Color.lerp(const Color(0xFF19191E), primary, 0.2)!,
-        darkIncoming: Color.lerp(const Color(0xFF24242A), primary, 0.22)!,
-      );
+    id: 'custom',
+    name: 'Custom',
+    primary: primary,
+    accent: Color.lerp(primary, Colors.white, 0.42)!,
+    lightBackground: Color.lerp(Colors.white, primary, 0.045)!,
+    darkBackground: Color.lerp(const Color(0xFF101014), primary, 0.18)!,
+    darkSurface: Color.lerp(const Color(0xFF19191E), primary, 0.2)!,
+    darkIncoming: Color.lerp(const Color(0xFF24242A), primary, 0.22)!,
+  );
 }
 
 class AppTheme {

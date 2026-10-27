@@ -8,6 +8,7 @@ import '../../../data/models/models.dart';
 import '../../../shared/widgets/app_logo.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../providers/auth_provider.dart';
+import 'pin_screen.dart';
 import 'selfie_verification_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -67,7 +68,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             );
       } else {
-        await ref.read(authProvider.notifier).signInWithMobile(mobileNumber);
+        await ref.read(authProvider.notifier).checkMobileNumber(mobileNumber);
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PinScreen(mobileNumber: mobileNumber),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());

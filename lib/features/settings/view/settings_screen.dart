@@ -68,9 +68,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const ThemeScreen(),
-                ),
+                MaterialPageRoute<void>(builder: (_) => const ThemeScreen()),
               ),
             ),
           ),

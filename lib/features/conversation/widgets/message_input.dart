@@ -64,8 +64,10 @@ class _MessageInputState extends State<MessageInput> {
                   fillColor: Theme.of(context).scaffoldBackgroundColor,
                   suffixIcon: IconButton(
                     onPressed: () {},
-                    icon: Icon(Icons.emoji_emotions_outlined,
-                        color: context.subtext),
+                    icon: Icon(
+                      Icons.emoji_emotions_outlined,
+                      color: context.subtext,
+                    ),
                   ),
                 ),
               ),

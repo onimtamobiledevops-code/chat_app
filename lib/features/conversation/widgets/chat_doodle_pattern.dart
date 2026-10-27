@@ -70,10 +70,7 @@ class _ChatDoodlePainter extends CustomPainter {
           textDirection: TextDirection.ltr,
         )..layout();
 
-        painter.paint(
-          canvas,
-          Offset(-painter.width / 2, -painter.height / 2),
-        );
+        painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
         canvas.restore();
       }
     }

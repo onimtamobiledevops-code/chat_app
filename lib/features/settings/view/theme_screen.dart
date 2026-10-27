@@ -93,8 +93,7 @@ class ThemeScreen extends ConsumerWidget {
                 separatorBuilder: (_, _) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   if (index == ChatWallpaper.values.length) {
-                    final customWallpaper =
-                        selectedWallpaper.id == 'custom'
+                    final customWallpaper = selectedWallpaper.id == 'custom'
                         ? selectedWallpaper
                         : ChatWallpaper.defaults;
                     return _WallpaperTile(
@@ -255,9 +254,7 @@ class ThemeScreen extends ConsumerWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            error.message ?? 'Could not open your photo gallery.',
-          ),
+          content: Text(error.message ?? 'Could not open your photo gallery.'),
         ),
       );
     }
@@ -358,9 +355,7 @@ class _WallpaperTile extends StatelessWidget {
         child: Container(
           width: 64,
           decoration: BoxDecoration(
-            gradient: wallpaper.imageBytes == null
-                ? wallpaper.gradient
-                : null,
+            gradient: wallpaper.imageBytes == null ? wallpaper.gradient : null,
             image: wallpaper.imageBytes == null
                 ? null
                 : DecorationImage(
@@ -412,8 +407,8 @@ class _WallpaperTile extends StatelessWidget {
                 child: Text(
                   isGalleryPicker
                       ? wallpaper.id == 'custom'
-                          ? 'My photo'
-                          : 'Gallery'
+                            ? 'My photo'
+                            : 'Gallery'
                       : wallpaper.name,
                   textAlign: TextAlign.center,
                   style: const TextStyle(

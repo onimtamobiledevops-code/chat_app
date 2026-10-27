@@ -104,10 +104,7 @@ class ChatWallpaper {
     gradient: imageBytes == null ? gradient : null,
     image: imageBytes == null
         ? null
-        : DecorationImage(
-            image: MemoryImage(imageBytes!),
-            fit: BoxFit.cover,
-          ),
+        : DecorationImage(image: MemoryImage(imageBytes!), fit: BoxFit.cover),
   );
 }
 

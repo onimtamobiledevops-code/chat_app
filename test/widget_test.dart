@@ -18,10 +18,20 @@ Future<void> _pumpApp(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _login(WidgetTester tester, String mobileNumber) async {
+Future<void> _enterMobile(WidgetTester tester, String mobileNumber) async {
   await tester.enterText(find.byType(TextFormField).first, mobileNumber);
   await tester.tap(find.text('Continue'));
   await tester.pumpAndSettle();
+}
+
+Future<void> _enterPin(WidgetTester tester, String pin) async {
+  await tester.enterText(find.byType(TextField), pin);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _login(WidgetTester tester, String mobileNumber) async {
+  await _enterMobile(tester, mobileNumber);
+  await _enterPin(tester, DummyAuthRepository.demoPin);
 }
 
 Future<void> _selectCountry(
@@ -45,12 +55,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Please enter your mobile number'), findsOneWidget);
 
-    await _login(tester, '701234567');
+    await _enterMobile(tester, '701234567');
     expect(
       find.text('No account found for this mobile number.'),
       findsOneWidget,
     );
+    expect(find.text('Enter your PIN'), findsNothing);
     expect(find.text('Messages'), findsNothing);
+  });
+
+  testWidgets('registered mobile number asks for a 4-digit PIN', (
+    tester,
+  ) async {
+    await _pumpApp(tester);
+    await _enterMobile(tester, '771234567');
+    expect(find.text('Enter your PIN'), findsOneWidget);
+    expect(find.text('Enter the 4-digit PIN for +94771234567'), findsOneWidget);
+
+    await _enterPin(tester, '0000');
+    expect(find.text('Incorrect PIN. Please try again.'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      isEmpty,
+    );
+    expect(find.text('Messages'), findsNothing);
+
+    await _enterPin(tester, DummyAuthRepository.demoPin);
+    expect(find.text('Enter your PIN'), findsNothing);
+    expect(find.text('Messages'), findsOneWidget);
   });
 
   testWidgets('signup requires a camera selfie and has no email or password', (
@@ -98,7 +130,7 @@ void main() {
     expect(find.text('Please take a selfie to continue.'), findsOneWidget);
   });
 
-  test('new accounts can sign in using only their mobile number', () async {
+  test('new accounts can sign in with their mobile number and PIN', () async {
     final repository = DummyAuthRepository();
     await repository.signUp(
       const SignUpRequest(
@@ -108,7 +140,11 @@ void main() {
       ),
     );
 
-    final user = await repository.signInWithMobile('+12025550134');
+    await repository.checkMobileNumber('+12025550134');
+    final user = await repository.signInWithMobile(
+      '+12025550134',
+      DummyAuthRepository.demoPin,
+    );
 
     expect(user.name, 'Member Test');
     expect(user.mobileNumber, '+12025550134');

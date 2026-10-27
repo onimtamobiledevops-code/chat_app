@@ -331,10 +331,9 @@ class _EmptyChats extends StatelessWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .secondary
-                  .withValues(alpha: 0.2),
+              color: Theme.of(
+                context,
+              ).colorScheme.secondary.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -412,10 +411,9 @@ class _ActiveRow extends ConsumerWidget {
             shape: BoxShape.circle,
             color: context.surface,
             border: Border.all(
-              color: Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.4),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.4),
               width: 1.5,
             ),
           ),

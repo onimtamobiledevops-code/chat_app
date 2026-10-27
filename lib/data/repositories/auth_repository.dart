@@ -15,13 +15,19 @@ class AuthException implements Exception {
 /// that implements this and swap it in [authRepositoryProvider].
 abstract class AuthRepository {
   Future<User?> currentUser();
-  Future<User> signInWithMobile(String mobileNumber);
+
+  /// Throws [AuthException] when no account uses [mobileNumber].
+  Future<void> checkMobileNumber(String mobileNumber);
+  Future<User> signInWithMobile(String mobileNumber, String pin);
   Future<User> signUp(SignUpRequest request);
   Future<void> signOut();
 }
 
 class DummyAuthRepository implements AuthRepository {
-  static const demoMobileNumber = '+94771234567';
+  static const demoMobileNumber = '+94762583926';
+
+  /// Every dummy account uses this PIN until sign-up lets members pick one.
+  static const demoPin = '1234';
 
   User? _user;
   final Map<String, User> _accounts = {};
@@ -30,11 +36,25 @@ class DummyAuthRepository implements AuthRepository {
   Future<User?> currentUser() async => _user;
 
   @override
-  Future<User> signInWithMobile(String mobileNumber) async {
+  Future<void> checkMobileNumber(String mobileNumber) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    _accountFor(mobileNumber);
+  }
+
+  @override
+  Future<User> signInWithMobile(String mobileNumber, String pin) async {
     await Future.delayed(const Duration(milliseconds: 800));
+    final account = _accountFor(mobileNumber);
+    if (pin != demoPin) {
+      throw const AuthException('Incorrect PIN. Please try again.');
+    }
+    return _user = account;
+  }
+
+  User _accountFor(String mobileNumber) {
     final normalizedMobile = mobileNumber.trim();
     if (normalizedMobile == demoMobileNumber) {
-      return _user = const User(
+      return const User(
         id: 'me',
         name: 'Demo User',
         isOnline: true,
@@ -46,7 +66,7 @@ class DummyAuthRepository implements AuthRepository {
     if (account == null) {
       throw const AuthException('No account found for this mobile number.');
     }
-    return _user = account;
+    return account;
   }
 
   @override
