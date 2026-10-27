@@ -1,13 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/models.dart';
 import '../../../shared/widgets/app_logo.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../providers/auth_provider.dart';
+import 'selfie_verification_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -26,6 +27,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   CountryCode _country = CountryCode.sriLanka;
   bool _isSigningUp = false;
   bool _loading = false;
+  bool _verifyingSelfie = false;
   String? _error;
   Uint8List? _photoBytes;
 
@@ -41,6 +43,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
+    if (_isSigningUp && _photoBytes == null) {
+      setState(() => _error = 'Please take a selfie to continue.');
+      return;
+    }
 
     setState(() {
       _loading = true;
@@ -98,27 +104,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _pickPhoto() async {
+    setState(() {
+      _verifyingSelfie = true;
+      _error = null;
+    });
     try {
-      final photo = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
+      final photoBytes = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(builder: (_) => const SelfieVerificationScreen()),
       );
-      if (photo == null) return;
-      final bytes = await photo.readAsBytes();
-      if (mounted) {
+      if (photoBytes != null && mounted) {
         setState(() {
-          _photoBytes = bytes;
+          _photoBytes = photoBytes;
           _error = null;
         });
       }
-    } on PlatformException catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = error.message ?? 'Could not open your photo gallery.';
-        });
-      }
+    } finally {
+      if (mounted) setState(() => _verifyingSelfie = false);
     }
   }
 
@@ -189,12 +190,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 showOnline: false,
                               ),
                             TextButton.icon(
-                              onPressed: _pickPhoto,
-                              icon: const Icon(Icons.add_a_photo_outlined),
+                              onPressed: _verifyingSelfie ? null : _pickPhoto,
+                              icon: _verifyingSelfie
+                                  ? const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.face_retouching_natural),
                               label: Text(
-                                _photoBytes == null
-                                    ? 'Add profile photo'
-                                    : 'Change profile photo',
+                                _verifyingSelfie
+                                    ? 'Opening verification...'
+                                    : _photoBytes == null
+                                    ? 'Start face verification'
+                                    : 'Verify again',
+                              ),
+                            ),
+                            Text(
+                              _photoBytes == null
+                                  ? 'Follow the camera prompts: look ahead, turn left and right, look up and down, then blink.'
+                                  : 'Face-direction steps completed. This does not guarantee protection from every spoofing attempt.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: context.subtext,
+                                fontSize: 12,
                               ),
                             ),
                           ],

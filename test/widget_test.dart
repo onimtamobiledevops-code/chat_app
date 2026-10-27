@@ -4,11 +4,13 @@ import 'package:chat_app/core/theme/app_theme.dart';
 import 'package:chat_app/core/theme/theme_mode_provider.dart';
 import 'package:chat_app/data/models/models.dart';
 import 'package:chat_app/data/repositories/auth_repository.dart';
+import 'package:chat_app/features/auth/services/selfie_photo_verifier.dart';
 import 'package:chat_app/main.dart';
 import 'package:chat_app/shared/widgets/app_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 Future<void> _pumpApp(WidgetTester tester) async {
   tester.view.physicalSize = const Size(1170, 2532);
@@ -53,7 +55,7 @@ void main() {
     expect(find.text('Messages'), findsNothing);
   });
 
-  testWidgets('signup requires mobile and has no email or password', (
+  testWidgets('signup requires a camera selfie and has no email or password', (
     tester,
   ) async {
     await _pumpApp(tester);
@@ -64,7 +66,13 @@ void main() {
     expect(find.text('Mobile number'), findsNWidgets(2));
     expect(find.byType(AppLogo), findsNothing);
     expect(find.text('Remarks (optional)'), findsOneWidget);
-    expect(find.text('Add profile photo'), findsOneWidget);
+    expect(find.text('Start face verification'), findsOneWidget);
+    expect(
+      find.text(
+        'Follow the camera prompts: look ahead, turn left and right, look up and down, then blink.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Email'), findsNothing);
     expect(find.text('Password'), findsNothing);
 
@@ -89,10 +97,7 @@ void main() {
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Messages'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.more_vert_rounded));
-    await tester.pumpAndSettle();
-    expect(find.text('Member Test'), findsOneWidget);
+    expect(find.text('Please take a selfie to continue.'), findsOneWidget);
   });
 
   test('new accounts can sign in using only their mobile number', () async {
@@ -109,6 +114,94 @@ void main() {
 
     expect(user.name, 'Member Test');
     expect(user.mobileNumber, '+12025550134');
+  });
+
+  test('selfie verification checks face direction step by step', () {
+    Face face({
+      double? leftEye = 0.9,
+      double? rightEye = 0.9,
+      double? pitch = 0,
+      double? yaw = 0,
+      double? roll = 0,
+    }) {
+      return Face(
+        boundingBox: Rect.zero,
+        landmarks: const {},
+        contours: const {},
+        headEulerAngleX: pitch,
+        leftEyeOpenProbability: leftEye,
+        rightEyeOpenProbability: rightEye,
+        headEulerAngleY: yaw,
+        headEulerAngleZ: roll,
+      );
+    }
+
+    expect(
+      selfiePoseVerificationError([], SelfiePose.center),
+      contains('No face detected'),
+    );
+    expect(
+      selfiePoseVerificationError([face(), face()], SelfiePose.center),
+      contains('Only one person'),
+    );
+    expect(
+      selfiePoseVerificationError([face(leftEye: 0.2)], SelfiePose.center),
+      contains('both eyes open'),
+    );
+    expect(
+      selfiePoseVerificationError([face(rightEye: null)], SelfiePose.center),
+      contains('eyes clearly'),
+    );
+    expect(selfiePoseVerificationError([face()], SelfiePose.center), isNull);
+    expect(
+      selfiePoseVerificationError([face(yaw: 25)], SelfiePose.left),
+      isNull,
+    );
+    expect(
+      selfiePoseVerificationError([face(yaw: -25)], SelfiePose.right),
+      isNull,
+    );
+    expect(
+      selfiePoseVerificationError([face(pitch: 18)], SelfiePose.up),
+      isNull,
+    );
+    expect(
+      selfiePoseVerificationError([face(pitch: -18)], SelfiePose.down),
+      isNull,
+    );
+    expect(
+      selfiePoseVerificationError([face(yaw: -25)], SelfiePose.left),
+      contains('left'),
+    );
+    expect(
+      selfiePoseVerificationError([face(yaw: 25)], SelfiePose.right),
+      contains('right'),
+    );
+    expect(
+      selfiePoseVerificationError([face(pitch: -18)], SelfiePose.up),
+      contains('up'),
+    );
+    expect(
+      selfiePoseVerificationError([face(pitch: 18)], SelfiePose.down),
+      contains('down'),
+    );
+    expect(
+      selfiePoseVerificationError([
+        face(leftEye: 0.1, rightEye: 0.1),
+      ], SelfiePose.blinkClosed),
+      isNull,
+    );
+    expect(
+      selfiePoseVerificationError([
+        face(leftEye: 0.1, rightEye: 0.1),
+      ], SelfiePose.blinkStart),
+      contains('Open both eyes'),
+    );
+    expect(
+      selfiePoseVerificationError([face()], SelfiePose.blinkClosed),
+      contains('Close both eyes'),
+    );
+    expect(selfiePoseVerificationError([face()], SelfiePose.blinkOpen), isNull);
   });
 
   testWidgets('login, chat, send, logout', (tester) async {
