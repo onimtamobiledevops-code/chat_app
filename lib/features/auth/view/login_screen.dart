@@ -209,8 +209,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             Text(
                               _photoBytes == null
-                                  ? 'Follow the camera prompts: look ahead, turn left and right, look up and down, then blink.'
-                                  : 'Face-direction steps completed. This does not guarantee protection from every spoofing attempt.',
+                                  ? 'Follow the camera prompts: turn left and right, look up and down, and blink.'
+                                  : 'Liveness check passed. This does not guarantee protection from every spoofing attempt.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: context.subtext,
