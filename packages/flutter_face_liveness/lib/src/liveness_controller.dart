@@ -99,10 +99,21 @@ class LivenessController extends ChangeNotifier {
   // mlkit backend.
   final List<({RawFrameData raw, FaceData face, _IdentityFaceBox? detection})> _frontalFrames = [];
   // Best single frontal frame — fallback if no frames pass the angle limit.
+  // Also the selfie (bestFrontalImageBytes); ranked by [_selfieRank].
   RawFrameData?      _bestFrontalFrame;
   FaceData?          _bestFrontalFace;
   _IdentityFaceBox?  _bestFrontalDetection;
   double         _bestFrontalScore = double.infinity;
+  // Subject's face on the previous frame — tells whether the head is moving.
+  FaceData?      _prevSubjectFace;
+
+  // Selfie quality gates — see [_selfieRank].
+  static const double _selfieMinEyeOpen     = 0.7;
+  static const double _selfieMaxRoll        = 8.0;   // degrees of head tilt
+  static const double _selfieMaxPoseDelta   = 3.0;   // degrees turned since previous frame
+  static const double _selfieMaxShift       = 0.05;  // face-centre shift / face width since previous frame
+  static const double _selfieSharpnessBonus = 3.0;   // degrees a fully sharp crop is worth
+  static const double _selfieUnfitPenalty   = 1000.0;
   String?        _error;
   double?        _faceIdModelDownloadProgress;
   double?        _yoloModelDownloadProgress;
@@ -414,6 +425,7 @@ class LivenessController extends ChangeNotifier {
         onActionCompleted: (_) => notifyListeners(),
         onStatusChanged:   (_) => notifyListeners(),
         onAllActionsCompleted: (r) => _onEngineComplete(r),
+        onSubjectChanged:  _clearFrontalCapture,
       );
 
       if (_isDisposed) return;
@@ -485,16 +497,24 @@ class LivenessController extends ChangeNotifier {
     // is either instant synchronous math or wrapped in `unawaited()` (the
     // yolov8/scrfd branch), so it adds zero delay before
     // _engine.processFrame() runs.
+    //
+    // Only frames showing just the person the engine is locked to are
+    // captured — never a second face in view or someone who stepped in.
+    final prevSubjectFace = _prevSubjectFace;
+    _prevSubjectFace = null;
     if ((_config.enableFaceId || _config.enableBestFrontalCapture) &&
-        _currentFace != null && result.rawFrame != null) {
+        _currentFace != null && result.rawFrame != null &&
+        result.faces.length == 1 && _engine!.isSubject(_currentFace!)) {
       final frontality = _currentFace!.headEulerAngleY.abs() + _currentFace!.headEulerAngleX.abs();
-      final isCandidateForBest = frontality < _bestFrontalScore;
+      final raw  = result.rawFrame!;
+      final face = _currentFace!;
+      _prevSubjectFace = face;
+      final bestRank = _selfieRank(face, prevSubjectFace, raw);
+      final isCandidateForBest = bestRank < _bestFrontalScore;
       // Multi-sample collection is a Face ID concern only (averaging embeddings) —
       // best-frontal capture alone only needs the single best frame below.
       final isCandidateForCollection = _config.enableFaceId &&
           frontality < _frontalAngleLimit && _frontalFrames.length < _maxFrontalFrames;
-      final raw  = result.rawFrame!;
-      final face = _currentFace!;
 
       // When a secondary backend (yolov8/scrfd) is selected, run it on this
       // frame to get the box/eye-points that will feed the embedding instead
@@ -551,17 +571,17 @@ class LivenessController extends ChangeNotifier {
             // Re-check candidacy — by the time this resolves, later frames may
             // have already updated _bestFrontalScore/_frontalFrames.
             _recordFrontalFrame(
-              frontality: frontality, raw: raw, face: face, detection: best,
+              frontality: frontality, bestRank: bestRank, raw: raw, face: face, detection: best,
             );
           }));
         } else {
           _recordFrontalFrame(
-            frontality: frontality, raw: raw, face: face, detection: null,
+            frontality: frontality, bestRank: bestRank, raw: raw, face: face, detection: null,
           );
         }
       } else {
         _recordFrontalFrame(
-          frontality: frontality, raw: raw, face: face, detection: null,
+          frontality: frontality, bestRank: bestRank, raw: raw, face: face, detection: null,
         );
       }
     }
@@ -717,21 +737,25 @@ class LivenessController extends ChangeNotifier {
   /// Updates best-frontal / frontal-frame-collection state for one frame.
   /// Called either synchronously (mlkit backend, or no eligible secondary
   /// detector run) or from the secondary detector's `.then()` callback —
-  /// [frontality] is the value computed when the frame first arrived,
-  /// re-checked here against whatever _bestFrontalScore/_frontalFrames.length
+  /// [frontality] and [bestRank] are the values computed when the frame first
+  /// arrived, re-checked here against whatever _bestFrontalScore/_frontalFrames.length
   /// is *now* (which may have moved on if this is a deferred callback).
   void _recordFrontalFrame({
     required double frontality,
+    required double bestRank,
     required RawFrameData raw,
     required FaceData face,
     required _IdentityFaceBox? detection,
   }) {
-    final isCandidateForBest = frontality < _bestFrontalScore;
+    // A deferred secondary-detector result can arrive after the engine has
+    // switched to a different person.
+    if (!_engine!.isSubject(face)) return;
+    final isCandidateForBest = bestRank < _bestFrontalScore;
     final isCandidateForCollection = _config.enableFaceId &&
         frontality < _frontalAngleLimit && _frontalFrames.length < _maxFrontalFrames;
 
     if (isCandidateForBest) {
-      _bestFrontalScore = frontality;
+      _bestFrontalScore = bestRank;
       _bestFrontalFrame = raw;
       _bestFrontalFace  = face;
       _bestFrontalDetection = detection;
@@ -744,6 +768,41 @@ class LivenessController extends ChangeNotifier {
     if (isCandidateForCollection && hasEyesForBackend) {
       _frontalFrames.add((raw: raw, face: face, detection: detection));
     }
+  }
+
+  /// Drops frames captured before the engine locked onto the current person,
+  /// so the selfie / identity sample can only come from whoever completes
+  /// the challenge.
+  void _clearFrontalCapture() {
+    _frontalFrames.clear();
+    _bestFrontalFrame     = null;
+    _bestFrontalFace      = null;
+    _bestFrontalDetection = null;
+    _bestFrontalScore     = double.infinity;
+    _prevSubjectFace      = null;
+  }
+
+  /// Ranks a frame as the selfie — lower is better. The most frontal frame
+  /// alone is often caught mid-turn (motion-blurred), mid-blink or with the
+  /// head tilted, so frames with both eyes open and the head level and still
+  /// always beat ones without; among those, a sharper face crop can win over
+  /// a slightly more frontal one. Unfit frames are only a fallback.
+  double _selfieRank(FaceData face, FaceData? prev, RawFrameData raw) {
+    final pose = face.headEulerAngleY.abs() + face.headEulerAngleX.abs() +
+        face.headEulerAngleZ.abs();
+    final eyesOpen = face.leftEyeOpenProbability  >= _selfieMinEyeOpen &&
+                     face.rightEyeOpenProbability >= _selfieMinEyeOpen;
+    final still = prev != null &&
+        (face.headEulerAngleY - prev.headEulerAngleY).abs() +
+                (face.headEulerAngleX - prev.headEulerAngleX).abs() <= _selfieMaxPoseDelta &&
+        (face.boundingBox.center - prev.boundingBox.center).distance <=
+            _selfieMaxShift * face.boundingBox.width;
+    if (!eyesOpen || !still || face.headEulerAngleZ.abs() > _selfieMaxRoll) {
+      return _selfieUnfitPenalty + pose;
+    }
+    final sharpness =
+        (_faceCropLaplacianVariance(raw, face.boundingBox) / 400.0).clamp(0.0, 1.0);
+    return pose - sharpness * _selfieSharpnessBonus;
   }
 
   Future<void> _onEngineComplete(LivenessResult result) async {
@@ -861,7 +920,7 @@ class LivenessController extends ChangeNotifier {
     // Resolve persistent faceId after successful liveness.
     // Average embeddings from multiple frontal frames for a stable identity.
     if (result.isSuccess && _faceIdentity != null) {
-      debugPrint('[FaceId] frontalFrames=${_frontalFrames.length}  bestScore=${_bestFrontalScore.toStringAsFixed(1)}°');
+      debugPrint('[FaceId] frontalFrames=${_frontalFrames.length}  bestRank=${_bestFrontalScore.toStringAsFixed(1)}');
 
       // Determine frames to process: collected frontal frames, or fallback to best single.
       // Snapshot via List.of() — this loop awaits per-frame below, and iterating
@@ -1246,11 +1305,7 @@ class LivenessController extends ChangeNotifier {
     _lastQuality                 = null;
     _lastRawFrame                = null;
     _lastMeshData                = null;
-    _frontalFrames.clear();
-    _bestFrontalFrame            = null;
-    _bestFrontalFace             = null;
-    _bestFrontalDetection        = null;
-    _bestFrontalScore            = double.infinity;
+    _clearFrontalCapture();
     _yoloModelDownloadProgress   = null;
     _scrfdModelDownloadProgress  = null;
     _isSecondaryDetectorRunning  = false;

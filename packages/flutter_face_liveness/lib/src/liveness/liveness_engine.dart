@@ -26,6 +26,7 @@ class LivenessEngine extends ChangeNotifier {
     this.onActionCompleted,
     this.onAllActionsCompleted,
     this.onStatusChanged,
+    this.onSubjectChanged,
   })  : _config = config,
         _cameraValidator = CameraValidator(config) {
     _buildActionSequence(requiredActions);
@@ -53,9 +54,20 @@ class LivenessEngine extends ChangeNotifier {
   // Only report low/over light after this many consecutive bad-quality frames.
   static const int _badLightFrameLimit = 6;
 
+  // The person the challenge is locked to (ML Kit tracking ID). Every action
+  // must be completed by this same face — see [_checkSubject].
+  int? _subjectTrackingId;
+  int  _framesWithoutSubject = 0;
+  // ~1 s at the default 20 fps — tolerates ML Kit briefly losing the face
+  // mid-turn, but not the subject stepping out of view.
+  static const int _subjectLostFrameLimit = 20;
+
   final void Function(LivenessAction action)?   onActionCompleted;
   final void Function(LivenessResult result)?   onAllActionsCompleted;
   final void Function(DetectionStatus status)?  onStatusChanged;
+  /// Fired whenever the engine locks onto a (new) person, before any action
+  /// has been completed — anything captured earlier belongs to someone else.
+  final void Function()?                        onSubjectChanged;
 
   DetectionStatus _status = DetectionStatus.initializing;
 
@@ -74,6 +86,11 @@ class LivenessEngine extends ChangeNotifier {
   int get totalActions => _sequence.length;
   bool get isComplete  => _isComplete;
 
+  /// Whether [face] is the person the challenge is locked to (true while no
+  /// one is locked yet, or when tracking IDs are unavailable).
+  bool isSubject(FaceData face) =>
+      _subjectTrackingId == null || face.trackingId == _subjectTrackingId;
+
   // ── Frame processing ────────────────────────────────────────────────────
 
   void processFrame(List<FaceData> faces, {FrameQuality? quality, FaceMeshData? meshData}) {
@@ -81,6 +98,7 @@ class LivenessEngine extends ChangeNotifier {
     _session.incrementFrame();
 
     if (_checkTimeout()) return;
+    if (_checkSubject(faces)) return;
 
     // ── Duplicate / static-image detection ─────────────────────────────────
     if (_config.enableDuplicateFrameDetection && quality != null) {
@@ -245,21 +263,67 @@ class LivenessEngine extends ChangeNotifier {
     return _mouthOpenConsecutive >= _mouthOpenRequired;
   }
 
+  // ── Same-person check ───────────────────────────────────────────────────
+
+  /// Keeps the whole challenge bound to one person, so someone can't start
+  /// it and hand over to a different person to finish. Returns true when the
+  /// session was failed.
+  bool _checkSubject(List<FaceData> faces) {
+    final significant = faces
+        .where((f) => f.faceAreaRatio >= _config.faceTooFarRatio)
+        .toList();
+
+    final subjectInView = _subjectTrackingId == null
+        ? significant.isNotEmpty
+        : significant.any((f) => f.trackingId == _subjectTrackingId);
+    if (subjectInView) {
+      _framesWithoutSubject = 0;
+    } else if (_completed.isNotEmpty) {
+      _framesWithoutSubject++;
+      if (_framesWithoutSubject >= _subjectLostFrameLimit) {
+        _fail('Your face left the frame. Keep your face in view until '
+            'verification completes.');
+        return true;
+      }
+    }
+
+    // Only lock/compare with a single face in view — with several, the
+    // multiple-faces check below already blocks progress.
+    if (significant.length != 1) return false;
+    final id = significant.first.trackingId;
+    if (id == null || id == _subjectTrackingId) return false;
+
+    if (_completed.isNotEmpty) {
+      _fail('A different face was detected. The same person must complete '
+          'every step.');
+      return true;
+    }
+    // Nothing completed yet — the new person simply starts from scratch.
+    _subjectTrackingId = id;
+    _resetChallengeState();
+    onSubjectChanged?.call();
+    return false;
+  }
+
   // ── Completion ──────────────────────────────────────────────────────────
 
   bool _checkTimeout() {
     if (_session.isTimedOut(_config.sessionTimeoutMs)) {
-      _isComplete = true;
-      _session.close();
-      _setStatus(DetectionStatus.failed);
-      onAllActionsCompleted?.call(LivenessResult.failure(
-        reason: 'Session timed out',
-        completedActions: List.from(_completed),
-        sessionId: _session.sessionId,
-      ));
+      _fail('Session timed out');
       return true;
     }
     return false;
+  }
+
+  void _fail(String reason) {
+    _isComplete = true;
+    _session.close();
+    _setStatus(DetectionStatus.failed);
+    onAllActionsCompleted?.call(LivenessResult.failure(
+      reason: reason,
+      completedActions: List.from(_completed),
+      sessionId: _session.sessionId,
+    ));
   }
 
   void _complete() {
@@ -305,15 +369,22 @@ class LivenessEngine extends ChangeNotifier {
     _consecutiveNoFaceFrames   = 0;
     _consecutiveBadLightFrames = 0;
     _lastConfidenceScore = 0.0;
+    _subjectTrackingId = null;
+    _framesWithoutSubject = 0;
+    _resetChallengeState();
+    _frameHasher.reset();
+    _session.reset();
+    _buildActionSequence(actions);
+    _setStatus(DetectionStatus.initializing);
+  }
+
+  /// Clears per-person detector state (partial blinks, head-pose baselines…).
+  void _resetChallengeState() {
     _mouthBaseline.clear();
     _mouthOpenConsecutive = 0;
     _humanValidator.reset();
     _blinkDetector.reset();
     _headDetector.reset();
-    _frameHasher.reset();
-    _session.reset();
-    _buildActionSequence(actions);
-    _setStatus(DetectionStatus.initializing);
   }
 
   @override
