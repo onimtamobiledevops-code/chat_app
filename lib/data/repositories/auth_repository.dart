@@ -24,7 +24,7 @@ abstract class AuthRepository {
 }
 
 class DummyAuthRepository implements AuthRepository {
-  static const demoMobileNumber = '+94762583926';
+  static const demoMobileNumber = '+94759888880';
 
   /// Every dummy account uses this PIN until sign-up lets members pick one.
   static const demoPin = '1234';
