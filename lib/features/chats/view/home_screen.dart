@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/notifications/push_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/models.dart';
 import '../../../shared/widgets/app_logo.dart';
@@ -22,6 +23,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Purely local UI state, so it stays out of Riverpod.
   int _tab = 0;
   final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Home only shows once signed in, so this is when to ask for permission.
+    ref.read(fcmRegistrationIdProvider);
+  }
 
   @override
   void dispose() {
