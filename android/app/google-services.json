@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1002709156763",
+    "project_id": "chatwbee",
+    "storage_bucket": "chatwbee.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1002709156763:android:5d4e421a9f344dd984573e",
+        "android_client_info": {
+          "package_name": "com.ballys.chat_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACQ2D0O82NfMdtxfjuIaM3O-2YEvNKB3U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
