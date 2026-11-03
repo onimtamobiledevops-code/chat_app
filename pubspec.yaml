@@ -40,6 +40,7 @@ dependencies:
   # Patched local copy; see packages/flutter_face_liveness/pubspec.yaml.
   flutter_face_liveness:
     path: packages/flutter_face_liveness
+  firebase_core: ^5.1.0
 
 dev_dependencies:
   flutter_test:
